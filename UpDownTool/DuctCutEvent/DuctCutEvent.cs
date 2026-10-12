@@ -1,68 +1,95 @@
-﻿using Autodesk.Revit.DB;
+using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using Autodesk.Revit.UI.Selection;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MEP_Up_and_Down.UpDownTool.DuctCutEvent
 {
+    public sealed class MEPRequest
+    {
+        public string Kind { get; }
+        public string Option { get; }
+        public bool Angle45 { get; }
+        public double Offset { get; }
+        public MEPRequest(string kind, string option, bool angle45, double offset)
+        { Kind = kind; Option = option; Angle45 = angle45; Offset = offset; }
+    }
     public class MEPDuctCutEvent : IExternalEventHandler
     {
         public UpAndDown window { get; set; }
+        public MEPRequest Request { get; set; }
         public void Execute(UIApplication app)
         {
+            var request = Request;
+            Request = null;
+            if (request == null) return;
+            if (window.IsClosed) { window.CompleteRequest(); return; }
             window.Hide();
-            UIDocument uidoc = app.ActiveUIDocument;
-            Document doc = uidoc.Document;
-
-            Reference r1 = uidoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, "Pick First Point");
-            Reference r2 = uidoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, "Pick second Point");
-
-            //UpAndDownUtils.DuctCut45(doc, r1, r2, true);
-
-            string option = window.Option;
-            string angle = window.Angle;
-            double offset = window.Offset / 304.8;
-
-            switch (option) 
+            try
             {
-                case "Cut Up":
-                    {
-                       if(angle == "45°")
-                        {
-                            UpAndDownUtils.DuctCut45(doc, r1, r2, offset, true);
-                        }
-                        else
-                        {
-                            UpAndDownUtils.DuctCut90(doc, r1, r2, offset, true);
-                        }
-                    break;
-                    }
-
-                case "Cut Down":
-                    {
-                        if (angle == "90°")
-                        {
-                            UpAndDownUtils.DuctCut90(doc, r1, r2, offset, false);
-                        }
-                        else
-                        {
-                            UpAndDownUtils.DuctCut45(doc, r1, r2, offset, false);
-                        }
-                        break;
-                    }
-
+                UIDocument uidoc = app.ActiveUIDocument;
+                if (uidoc == null) throw new InvalidOperationException("Open a Revit project first.");
+                Document doc = uidoc.Document;
+                bool move = request.Option.StartsWith("Move", StringComparison.Ordinal);
+                var filter = new CurveFilter(request.Kind, movement: move);
+                double offset = UnitUtils.ConvertToInternalUnits(request.Offset, UnitTypeId.Millimeters);
+                bool up = request.Option.EndsWith("Up", StringComparison.Ordinal);
+                if (request.Option.StartsWith("Move", StringComparison.Ordinal))
+                {
+                    var refs = uidoc.Selection.PickObjects(ObjectType.Element, filter, "Select MEP elements to move, then click Finish.");
+                    if (refs.Count == 0) return;
+                    Run(doc, request.Option, () => UpAndDownUtils.Move(doc,
+                        refs.Select(r => r.ElementId).Distinct().ToList(), XYZ.BasisZ * (up ? offset : -offset)));
+                }
+                else
+                {
+                    var first = uidoc.Selection.PickObject(ObjectType.PointOnElement, filter, "Pick the first point on a horizontal MEP element.");
+                    var second = uidoc.Selection.PickObject(ObjectType.PointOnElement, new CurveFilter(request.Kind, first.ElementId), "Pick the second point on the same element.");
+                    Run(doc, request.Option, () => UpAndDownUtils.Cut(doc, first, second, offset, up, request.Angle45));
+                }
+                window.SetStatus("Completed. You can run another operation.");
             }
-
-            window.Show();
-
+            catch (Autodesk.Revit.Exceptions.OperationCanceledException) { window.SetStatus("Selection cancelled. No changes made."); }
+            catch (Exception ex)
+            {
+                window.SetStatus("Operation failed. Changes rolled back.");
+                TaskDialog.Show("MEP Up And Down", ex.Message + "\n\nFor cuts, load compatible elbows and configure the selected type's fittings/routing preferences.");
+            }
+            finally
+            {
+                window.CompleteRequest();
+                if (!window.IsClosed) { window.Show(); window.Activate(); }
+            }
         }
-
-        public string GetName()
+        private static void Run(Document doc, string name, Action action)
         {
-            return "DuctCutEvent";
+            using (var t = new Transaction(doc, "MEP " + name))
+            {
+                t.Start();
+                var options = t.GetFailureHandlingOptions();
+                options.SetFailuresPreprocessor(new RollbackErrors());
+                options.SetClearAfterRollback(true);
+                t.SetFailureHandlingOptions(options);
+                action();
+                if (t.Commit() != TransactionStatus.Committed)
+                    throw new InvalidOperationException("Revit could not commit the operation. Check constraints, fitting sizes and routing preferences.");
+            }
+        }
+        public string GetName() => "MEP Up And Down";
+        private sealed class CurveFilter : ISelectionFilter
+        {
+            private readonly string kind;
+            private readonly ElementId id;
+            private readonly bool movement;
+            public CurveFilter(string kind, ElementId id = null, bool movement = false) { this.kind = kind; this.id = id; this.movement = movement; }
+            public bool AllowElement(Element e) => (movement ? UpAndDownUtils.MatchesMove(e, kind) : UpAndDownUtils.Matches(e, kind)) && (id == null || e.Id == id);
+            public bool AllowReference(Reference r, XYZ p) => true;
+        }
+        private sealed class RollbackErrors : IFailuresPreprocessor
+        {
+            public FailureProcessingResult PreprocessFailures(FailuresAccessor a) => a.GetFailureMessages().Any(m => m.GetSeverity() == FailureSeverity.Error)
+                ? FailureProcessingResult.ProceedWithRollBack : FailureProcessingResult.Continue;
         }
     }
 }
