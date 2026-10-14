@@ -2,7 +2,7 @@
 <RevitAddIns>
   <AddIn Type="Command">
     <Name>MEP Up And Down</Name>
-    <Assembly>D:\2_Revit\6_Working\00. Revit_API\Project\MEP_Up-and_Down_ver1\bin\Release\MEP Up and Down.dll</Assembly>
+    <Assembly>F:\Hoa Le\1. Working\Tools\MEP_Up_and_Down_ver1\MEP_Up_and_Down_ver1\bin\Release\MEP Up and Down.dll</Assembly>
     <AddInId>4751a655-919c-40d4-a387-dac87d3f900a</AddInId>
     <FullClassName>MEP_Up_and_Down.MEP_Up_and_Down_Class</FullClassName>
     <Text>MEP Up And Down</Text>

@@ -2,6 +2,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Selection;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace MEP_Up_and_Down.UpDownTool.DuctCutEvent
@@ -54,7 +55,7 @@ namespace MEP_Up_and_Down.UpDownTool.DuctCutEvent
             catch (Exception ex)
             {
                 window.SetStatus("Operation failed. Changes rolled back.");
-                TaskDialog.Show("MEP Up And Down", ex.Message + "\n\nFor cuts, load compatible elbows and configure the selected type's fittings/routing preferences.");
+                TaskDialog.Show("MEP Up And Down", ex.Message);
             }
             finally
             {
@@ -67,13 +68,17 @@ namespace MEP_Up_and_Down.UpDownTool.DuctCutEvent
             using (var t = new Transaction(doc, "MEP " + name))
             {
                 t.Start();
+                var failures = new RollbackErrors();
                 var options = t.GetFailureHandlingOptions();
-                options.SetFailuresPreprocessor(new RollbackErrors());
+                options.SetFailuresPreprocessor(failures);
                 options.SetClearAfterRollback(true);
                 t.SetFailureHandlingOptions(options);
                 action();
                 if (t.Commit() != TransactionStatus.Committed)
-                    throw new InvalidOperationException("Revit could not commit the operation. Check constraints, fitting sizes and routing preferences.");
+                    throw new InvalidOperationException("Revit rolled back MEP " + name + "."
+                        + (failures.Errors.Count > 0
+                            ? "\n\n" + string.Join("\n\n", failures.Errors)
+                            : "\nNo detailed failure was returned. Check constraints, fitting sizes and routing preferences."));
             }
         }
         public string GetName() => "MEP Up And Down";
@@ -88,8 +93,23 @@ namespace MEP_Up_and_Down.UpDownTool.DuctCutEvent
         }
         private sealed class RollbackErrors : IFailuresPreprocessor
         {
-            public FailureProcessingResult PreprocessFailures(FailuresAccessor a) => a.GetFailureMessages().Any(m => m.GetSeverity() == FailureSeverity.Error)
-                ? FailureProcessingResult.ProceedWithRollBack : FailureProcessingResult.Continue;
+            public List<string> Errors { get; } = new List<string>();
+
+            public FailureProcessingResult PreprocessFailures(FailuresAccessor a)
+            {
+                bool hasErrors = false;
+                foreach (var message in a.GetFailureMessages())
+                {
+                    if (message.GetSeverity() != FailureSeverity.Error) continue;
+                    hasErrors = true;
+                    // Save plain text before rollback clears Revit's failure objects.
+                    var ids = message.GetFailingElementIds().Select(id => id.ToString()).ToList();
+                    string detail = message.GetDescriptionText()
+                        + (ids.Count > 0 ? "\nElement IDs: " + string.Join(", ", ids) : "");
+                    if (!Errors.Contains(detail)) Errors.Add(detail);
+                }
+                return hasErrors ? FailureProcessingResult.ProceedWithRollBack : FailureProcessingResult.Continue;
+            }
         }
     }
 }

@@ -59,10 +59,19 @@ namespace MEP_Up_and_Down.UpDownTool
             if (axis == null) throw new InvalidOperationException("Only straight MEP elements are supported.");
             if (source.Pinned || source.GroupId != ElementId.InvalidElementId)
                 throw new InvalidOperationException("Unpin the element and remove it from its group before cutting.");
-            if (source.ConnectorManager.Connectors.Cast<Connector>().Count(c => c.ConnectorType == ConnectorType.End) != 2
-                || source.ConnectorManager.Connectors.Cast<Connector>().Any(c => c.ConnectorType != ConnectorType.End
-                    && c.ConnectorType != ConnectorType.Logical && c.AllRefs.Cast<Connector>().Any(r => r.Owner.Id != source.Id)))
-                throw new InvalidOperationException("Cut supports a simple two-end element. Remove branch/tap connections from the element first.");
+            var connectors = source.ConnectorManager.Connectors.Cast<Connector>().ToList();
+            int endCount = connectors.Count(c => c.ConnectorType == ConnectorType.End);
+            if (endCount != 2)
+                throw new InvalidOperationException($"Cut requires two endpoint connectors. Element {source.Id} has {endCount} endpoint connectors.");
+            // AllRefs can also contain logical references; only physical connections
+            // on an additional connector indicate a branch attached to this curve.
+            var branchOwners = connectors.Where(c => c.ConnectorType != ConnectorType.End
+                    && c.ConnectorType != ConnectorType.Logical)
+                .SelectMany(c => c.AllRefs.Cast<Connector>().Where(r => r.Owner.Id != source.Id
+                    && r.ConnectorType != ConnectorType.Logical && c.IsConnectedTo(r)))
+                .Select(r => r.Owner.Id).Distinct().ToList();
+            if (branchOwners.Count > 0)
+                throw new InvalidOperationException($"Element {source.Id} has connected branches/taps (element IDs: {string.Join(", ", branchOwners)}). Cut currently supports elements without branches/taps. Select a separate straight segment or disconnect these branches first.");
             if (Math.Abs(axis.Direction.Z) > 1e-6)
                 throw new InvalidOperationException("Cut requires a horizontal element. Move supports sloped elements.");
             XYZ start = axis.GetEndPoint(0), end = axis.GetEndPoint(1), direction = axis.Direction;
@@ -100,7 +109,18 @@ namespace MEP_Up_and_Down.UpDownTool
             for (int i = 0; i < 4; i++)
             {
                 doc.Regenerate();
-                doc.Create.NewElbowFitting(At(segments[i], points[i + 1]), At(segments[i + 1], points[i + 1]));
+                try
+                {
+                    doc.Create.NewElbowFitting(At(segments[i], points[i + 1]), At(segments[i + 1], points[i + 1]));
+                }
+                catch (Autodesk.Revit.Exceptions.ArgumentException ex)
+                {
+                    throw new InvalidOperationException("Could not create an offset elbow. Check available length, fitting sizes and the selected type's elbow/routing preferences. " + ex.Message, ex);
+                }
+                catch (Autodesk.Revit.Exceptions.InvalidOperationException ex)
+                {
+                    throw new InvalidOperationException("Could not create an offset elbow. Check available length, fitting sizes and the selected type's elbow/routing preferences. " + ex.Message, ex);
+                }
             }
             doc.Regenerate();
             foreach (var neighbor in startNeighbors)
