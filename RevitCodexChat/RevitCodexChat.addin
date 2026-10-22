@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>Codex Revit AI</Name>
+    <Assembly>F:\Hoa Le\1. Working\Tools\MEP_Up_and_Down_ver1\MEP_Up_and_Down_ver1\RevitCodexChat\bin\Release\RevitCodexChat.dll</Assembly>
+    <AddInId>66516FF7-FE69-4737-806E-DA43BC92290F</AddInId>
+    <FullClassName>RevitCodexChat.App</FullClassName>
+    <VendorId>HOLA</VendorId>
+    <VendorDescription>Read-only Codex chat for Revit 2024</VendorDescription>
+  </AddIn>
+</RevitAddIns>

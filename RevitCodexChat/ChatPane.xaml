@@ -1,0 +1,50 @@
+<Page x:Class="RevitCodexChat.ChatPane" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Background="#F4F6FA" FontFamily="Segoe UI" FontSize="13" MinWidth="280">
+  <Page.Resources>
+    <Style TargetType="Button">
+      <Setter Property="Padding" Value="12,8"/><Setter Property="Margin" Value="0,0,6,0"/>
+      <Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#CDD5E1"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style TargetType="TextBox">
+      <Setter Property="Padding" Value="8"/><Setter Property="BorderBrush" Value="#CDD5E1"/>
+      <Setter Property="VerticalContentAlignment" Value="Top"/>
+    </Style>
+  </Page.Resources>
+  <Grid Margin="14">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <StackPanel>
+      <TextBlock Text="Codex · Revit AI" FontWeight="SemiBold" FontSize="22" Foreground="#17243D"/>
+      <TextBlock Text="Trợ lý đọc và phân tích model" Foreground="#5A677C" Margin="0,4,0,12"/>
+    </StackPanel>
+    <Border Grid.Row="1" Background="#E6F4EF" CornerRadius="8" Padding="10" Margin="0,0,0,12">
+      <StackPanel>
+        <TextBlock Text="● Chỉ đọc dữ liệu" Foreground="#17654B" FontWeight="SemiBold"/>
+        <TextBlock Text="Chỉ gửi dữ liệu khi bấm Gửi. Add-in không thay đổi model." TextWrapping="Wrap" Margin="0,4,0,0" Foreground="#355E51"/>
+      </StackPanel>
+    </Border>
+    <ScrollViewer x:Name="ChatScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel x:Name="Messages"/>
+    </ScrollViewer>
+    <StackPanel Grid.Row="3" Margin="0,10,0,10">
+      <Button x:Name="ReadButton" Content="Đọc phần tử đang chọn" Click="Read_Click" HorizontalAlignment="Left"/>
+      <TextBlock x:Name="ContextStatus" Text="Chưa có dữ liệu phần tử." TextWrapping="Wrap" Foreground="#5A677C" Margin="0,6,0,0"/>
+      <Expander Header="Xem dữ liệu sẽ gửi" Margin="0,5,0,0">
+        <TextBox x:Name="ContextPreview" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="160" VerticalScrollBarVisibility="Auto"/>
+      </Expander>
+      <Button x:Name="ClearButton" Content="Cuộc trò chuyện mới" Click="Clear_Click" HorizontalAlignment="Left" Margin="0,6,0,0" Padding="8,4"/>
+    </StackPanel>
+    <TextBox x:Name="PromptBox" Grid.Row="4" MinHeight="80" MaxHeight="160" AcceptsReturn="True" TextWrapping="Wrap"
+             VerticalScrollBarVisibility="Auto" PreviewKeyDown="Prompt_KeyDown" ToolTip="Nhập câu hỏi. Ctrl+Enter để gửi."/>
+    <StackPanel Grid.Row="5" Margin="0,8,0,0">
+      <StackPanel Orientation="Horizontal">
+        <Button x:Name="SendButton" Content="Gửi" Background="#244EC8" Foreground="White" Click="Send_Click"/>
+        <Button x:Name="StopButton" Content="Dừng" IsEnabled="False" Click="Stop_Click"/>
+      </StackPanel>
+      <TextBlock x:Name="Status" Text="Sẵn sàng · Ctrl+Enter để gửi" TextWrapping="Wrap" Foreground="#5A677C" Margin="0,8,0,0"/>
+    </StackPanel>
+  </Grid>
+</Page>
